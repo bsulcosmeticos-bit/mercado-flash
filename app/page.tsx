@@ -1389,6 +1389,28 @@ const SettingsView = ({
           </div>
         </div>
 
+        {/* Offline & Home Screen Info Card */}
+        <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-3xl p-6 text-white shadow-lg shadow-green-200">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+              <Zap size={20} fill="white" className="text-white" />
+            </div>
+            <div>
+              <p className="font-bold text-base leading-tight">Funciona 100% Offline</p>
+              <p className="text-[11px] text-green-100">Ideal para usar dentro do supermercado</p>
+            </div>
+          </div>
+          <p className="text-xs text-green-50 leading-relaxed mb-4">
+            Todas as suas listas, itens, quantidades e cálculos ficam salvos diretamente na memória deste aparelho. Você não precisa de internet para marcar itens ou somar suas compras.
+          </p>
+          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-3 border border-white/20">
+            <p className="text-[11px] font-bold text-white mb-1">📱 Dica: Instale na tela do seu celular</p>
+            <p className="text-[10px] text-green-100 leading-relaxed">
+              No navegador do celular (Chrome ou Safari), toque no menu de 3 pontinhos ou no botão de compartilhar e selecione <strong>&quot;Adicionar à tela de início&quot;</strong> ou <strong>&quot;Instalar aplicativo&quot;</strong>. Ele funcionará como um app de verdade!
+            </p>
+          </div>
+        </div>
+
         {/* Suggestions Section */}
         <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100 font-medium p-6">
           <div className="flex items-center gap-4 mb-4">
