@@ -28,106 +28,11 @@ import {
   Settings,
   Palette,
   MessageSquarePlus,
-  LogIn,
-  LogOut,
   Loader2,
-  Star
+  Star,
+  RotateCcw
 } from 'lucide-react';
 import Image from 'next/image';
-import { auth, db } from '../lib/firebase';
-import { 
-  onAuthStateChanged, 
-  signInWithPopup, 
-  GoogleAuthProvider, 
-  signOut,
-  User as FirebaseUser
-} from 'firebase/auth';
-import { 
-  collection, 
-  doc, 
-  setDoc, 
-  onSnapshot, 
-  query, 
-  where, 
-  deleteDoc,
-  serverTimestamp,
-  updateDoc,
-  getDocFromServer
-} from 'firebase/firestore';
-
-// --- Error Handling ---
-enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
-
-interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId?: string | null;
-    email?: string | null;
-    emailVerified?: boolean | null;
-    isAnonymous?: boolean | null;
-    tenantId?: string | null;
-    providerInfo?: {
-      providerId?: string | null;
-      email?: string | null;
-    }[];
-  }
-}
-
-function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData?.map(provider => ({
-        providerId: provider.providerId,
-        email: provider.email,
-      })) || []
-    },
-    operationType,
-    path
-  }
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
-}
-
-/**
- * Deeply sanitizes an object by removing all undefined values.
- * Firestore does not allow undefined values in data.
- * It also preserves Firestore special types like FieldValue.
- */
-function deepSanitize(obj: unknown): unknown {
-  if (obj === null || typeof obj !== 'object') {
-    return obj;
-  }
-
-  // Preserve Firestore FieldValues and other non-plain objects
-  if (Object.getPrototypeOf(obj) !== Object.prototype && !Array.isArray(obj)) {
-    return obj;
-  }
-
-  if (Array.isArray(obj)) {
-    return obj.map(item => deepSanitize(item));
-  }
-
-  return Object.fromEntries(
-    Object.entries(obj as Record<string, unknown>)
-      .filter(([, v]) => v !== undefined)
-      .map(([k, v]) => [k, deepSanitize(v)])
-  );
-}
 
 // --- Types ---
 type View = 'lists' | 'history' | 'settings' | 'offers' | 'detail';
@@ -1398,9 +1303,7 @@ const SettingsView = ({
   onThemeChange, 
   suggestions, 
   onSuggestionsChange,
-  user,
-  onLogout,
-  onLoginGoogle
+  onResetData
 }: { 
   currency: Currency, 
   onCurrencyChange: (c: Currency) => void, 
@@ -1408,9 +1311,7 @@ const SettingsView = ({
   onThemeChange: (t: ThemeColor) => void,
   suggestions: string,
   onSuggestionsChange: (s: string) => void,
-  user: FirebaseUser | null,
-  onLogout: () => void,
-  onLoginGoogle?: () => void
+  onResetData: () => void
 }) => {
   const [isCurrencyModalOpen, setIsCurrencyModalOpen] = useState(false);
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
@@ -1427,55 +1328,22 @@ const SettingsView = ({
       </header>
 
       <div className="space-y-4">
-        {/* User Card */}
-        {user ? (
-          <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100 font-medium p-6">
-            <div className="flex items-center gap-4">
-              {user.photoURL ? (
-                <div className="relative w-16 h-16 rounded-2xl overflow-hidden shadow-md">
-                  <Image src={user.photoURL} alt={user.displayName || 'User'} fill referrerPolicy="no-referrer" />
-                </div>
-              ) : (
-                <div className={`w-16 h-16 ${themeColor.light} rounded-2xl flex items-center justify-center text-2xl font-black ${themeColor.text}`}>
-                  {user.displayName?.charAt(0) || user.email?.charAt(0) || 'U'}
-                </div>
-              )}
-              <div className="flex-1">
-                <p className="font-bold text-slate-900 text-lg leading-tight">{user.displayName || 'Usuário'}</p>
-                <p className="text-xs text-slate-400">{user.email}</p>
-                <div className="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-[10px] font-bold uppercase tracking-wider">
-                  <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                  Sincronizado na Nuvem
-                </div>
+        {/* Storage Card - 100% Free & Local without Email */}
+        <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100 font-medium p-6">
+          <div className="flex items-center gap-4">
+            <div className={`w-14 h-14 ${themeColor.light} rounded-2xl flex items-center justify-center text-xl font-black ${themeColor.text}`}>
+              <ShoppingBasket size={28} />
+            </div>
+            <div className="flex-1">
+              <p className="font-bold text-slate-900 text-lg leading-tight">Acesso Direto & Gratuito</p>
+              <p className="text-xs text-slate-400 mt-0.5">Sem necessidade de e-mail ou cadastro</p>
+              <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-50 text-green-700 text-[10px] font-bold uppercase tracking-wider">
+                <Check size={12} />
+                Armazenamento 100% Privado no aparelho
               </div>
             </div>
           </div>
-        ) : (
-          <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100 font-medium p-6">
-            <div className="flex items-center gap-4 mb-4">
-              <div className={`w-16 h-16 ${themeColor.light} rounded-2xl flex items-center justify-center text-2xl font-black ${themeColor.text}`}>
-                <Leaf size={28} />
-              </div>
-              <div className="flex-1">
-                <p className="font-bold text-slate-900 text-lg leading-tight">Modo Convidado (Local)</p>
-                <p className="text-xs text-slate-400">Dados salvos de forma 100% privada neste navegador</p>
-                <div className="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-[10px] font-bold uppercase tracking-wider">
-                  <Check size={12} />
-                  Sem necessidade de dados
-                </div>
-              </div>
-            </div>
-            {onLoginGoogle && (
-              <button
-                onClick={onLoginGoogle}
-                className="w-full mt-2 py-3 px-4 bg-slate-900 text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-slate-800 transition-all active:scale-95 shadow-md shadow-slate-100"
-              >
-                <LogIn size={16} />
-                Conectar com Google para salvar na Nuvem
-              </button>
-            )}
-          </div>
-        )}
+        </div>
 
         {/* Moeda Selection */}
         <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100 font-medium">
@@ -1542,21 +1410,19 @@ const SettingsView = ({
 
         <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100 font-medium overflow-hidden">
           <div className="p-6 border-b border-slate-50">
-            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Sessão</h3>
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Gerenciar Dados</h3>
             <button 
-              onClick={onLogout}
-              className="w-full flex items-center justify-between p-4 rounded-2xl bg-red-50 text-red-600 font-bold hover:bg-red-100 transition-colors active:scale-95 shadow-sm shadow-red-100/50"
+              onClick={onResetData}
+              className="w-full flex items-center justify-between p-4 rounded-2xl bg-amber-50 text-amber-700 font-bold hover:bg-amber-100 transition-colors active:scale-95 shadow-sm shadow-amber-100/50"
             >
               <div className="flex items-center gap-3">
-                <LogOut size={20} />
-                <span>{user ? 'Encerrar Sessão' : 'Sair / Reiniciar Modo Convidado'}</span>
+                <RotateCcw size={20} />
+                <span>Restaurar Listas Padrão</span>
               </div>
               <ChevronRight size={18} className="opacity-50" />
             </button>
             <p className="mt-4 text-[10px] text-slate-400 leading-relaxed px-2">
-              {user 
-                ? 'Você será desconectado e precisará entrar novamente para acessar suas listas salvas na nuvem.' 
-                : 'Seus dados locais continuarão salvos no navegador a menos que você limpe o cache do dispositivo.'}
+              Suas listas e itens ficam salvos com segurança na memória deste dispositivo, funcionando 100% offline e sem necessidade de e-mail ou conta externa.
             </p>
           </div>
           
@@ -1647,16 +1513,7 @@ const DEFAULT_GUEST_LISTS: GroceryList[] = [
 
 export default function MercadoFreshApp() {
   const [hasMounted, setHasMounted] = useState(false);
-  const [user, setUser] = useState<FirebaseUser | null>(null);
-  const [isGuest, setIsGuest] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('mercado_fresh_is_guest') === 'true';
-    }
-    return false;
-  });
-  const [loginError, setLoginError] = useState<string | null>(null);
   const [sharedListIncoming, setSharedListIncoming] = useState<GroceryList | null>(null);
-  const [loading, setLoading] = useState(true);
   const [view, setView] = useState<View>('lists');
   const [isOffline, setIsOffline] = useState(false);
 
@@ -1713,9 +1570,10 @@ export default function MercadoFreshApp() {
     }
   }, []);
 
-  // Load guest data when in guest mode
+  // Load saved data directly on mount
   useEffect(() => {
-    if (!user && isGuest && typeof window !== 'undefined') {
+    setHasMounted(true);
+    if (typeof window !== 'undefined') {
       try {
         const storedLists = localStorage.getItem('mercado_fresh_guest_lists');
         if (storedLists) {
@@ -1736,195 +1594,44 @@ export default function MercadoFreshApp() {
           if (parsedSettings.suggestions) setSuggestions(parsedSettings.suggestions);
         }
       } catch (err) {
-        console.error('Error loading guest data from localStorage', err);
+        console.error('Error loading data from localStorage', err);
+        setLists(DEFAULT_GUEST_LISTS);
       }
     }
-  }, [user, isGuest]);
-
-  useEffect(() => {
-    setHasMounted(true);
-
-    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
-      setLoading(false);
-
-      if (firebaseUser) {
-        setIsGuest(false);
-        try { localStorage.removeItem('mercado_fresh_is_guest'); } catch {}
-
-        // Initialize User Data if not exists
-        const userDocRef = doc(db, 'users', firebaseUser.uid);
-        try {
-          const userDoc = await getDocFromServer(userDocRef);
-          if (!userDoc.exists()) {
-            await setDoc(userDocRef, {
-              currency: CURRENCIES[0],
-              themeId: THEME_COLORS[0].id,
-              suggestions: '',
-              updatedAt: serverTimestamp()
-            });
-          }
-        } catch (error) {
-          console.error('Error initializing user', error);
-        }
-
-        // Sync User Data
-        onSnapshot(userDocRef, (snapshot) => {
-          if (snapshot.exists()) {
-            const data = snapshot.data();
-            if (data.currency) setCurrency(data.currency);
-            if (data.themeId) {
-              const theme = THEME_COLORS.find(t => t.id === data.themeId);
-              if (theme) setThemeColor(theme);
-            }
-            if (data.suggestions) setSuggestions(data.suggestions);
-          }
-        }, (error) => {
-          console.warn('Firestore snapshot error on user data:', error);
-        });
-
-        // Sync Lists (safe in-memory sort to avoid requiring composite indexes)
-        const listsQuery = query(
-          collection(db, 'lists'),
-          where('userId', '==', firebaseUser.uid)
-        );
-        onSnapshot(listsQuery, (snapshot) => {
-          const fetchedLists = snapshot.docs.map(d => ({
-            id: d.id,
-            ...d.data()
-          })) as GroceryList[];
-          fetchedLists.sort((a, b) => {
-            const timeA = (a.createdAt as { toMillis?: () => number })?.toMillis?.() || 0;
-            const timeB = (b.createdAt as { toMillis?: () => number })?.toMillis?.() || 0;
-            return timeB - timeA;
-          });
-          setLists(fetchedLists);
-        }, (error) => {
-          console.warn('Firestore snapshot error on lists:', error);
-        });
-      }
-    });
-
-    // Safety timeout: never leave user stuck on infinite spinner
-    const safetyTimer = setTimeout(() => {
-      setLoading(false);
-    }, 1500);
-
-    return () => {
-      unsubscribeAuth();
-      clearTimeout(safetyTimer);
-    };
   }, []);
 
-  const handleLogin = async () => {
-    setLoginError(null);
-    const provider = new GoogleAuthProvider();
+  const handleCurrencyChange = (c: Currency) => {
+    setCurrency(c);
     try {
-      await signInWithPopup(auth, provider);
-    } catch (error: unknown) {
-      const firebaseError = error as { code?: string; message?: string };
-      if (
-        firebaseError.code === 'auth/cancelled-popup-request' || 
-        firebaseError.code === 'auth/popup-closed-by-user'
-      ) {
-        return;
-      }
-      if (firebaseError.code === 'auth/unauthorized-domain') {
-        setLoginError(
-          'O domínio deste link não está na lista de domínios autorizados do Firebase Console. Você pode continuar usando o app normalmente com o botão "Usar sem login".'
-        );
-        return;
-      }
-      console.error('Login error', error);
-      setLoginError(
-        'O login com Google não pôde ser completado (o navegador pode ter bloqueado a janela ou a rede falhou). Você pode acessar normalmente usando o botão "Usar sem login" abaixo.'
-      );
-    }
-  };
-
-  const handleContinueAsGuest = () => {
-    setIsGuest(true);
-    setLoginError(null);
-    try {
-      localStorage.setItem('mercado_fresh_is_guest', 'true');
-      const storedLists = localStorage.getItem('mercado_fresh_guest_lists');
-      if (!storedLists) {
-        setLists(DEFAULT_GUEST_LISTS);
-        localStorage.setItem('mercado_fresh_guest_lists', JSON.stringify(DEFAULT_GUEST_LISTS));
-      } else {
-        setLists(JSON.parse(storedLists));
-      }
+      const current = JSON.parse(localStorage.getItem('mercado_fresh_guest_settings') || '{}');
+      localStorage.setItem('mercado_fresh_guest_settings', JSON.stringify({ ...current, currency: c }));
     } catch {}
   };
 
-  const handleLogout = async () => {
-    try {
-      if (user) {
-        await signOut(auth);
-      }
-      setIsGuest(false);
-      try { localStorage.removeItem('mercado_fresh_is_guest'); } catch {}
-      setView('lists');
-      setSelectedListId(null);
-    } catch (error) {
-      console.error('Logout error', error);
-    }
-  };
-
-  const handleCurrencyChange = async (c: Currency) => {
-    setCurrency(c);
-    if (user) {
-      try {
-        await setDoc(doc(db, 'users', user.uid), { 
-          currency: c,
-          updatedAt: serverTimestamp()
-        }, { merge: true });
-      } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`);
-      }
-    } else {
-      try {
-        const current = JSON.parse(localStorage.getItem('mercado_fresh_guest_settings') || '{}');
-        localStorage.setItem('mercado_fresh_guest_settings', JSON.stringify({ ...current, currency: c }));
-      } catch {}
-    }
-  };
-
-  const handleThemeChange = async (t: ThemeColor) => {
+  const handleThemeChange = (t: ThemeColor) => {
     setThemeColor(t);
-    if (user) {
-      try {
-        await setDoc(doc(db, 'users', user.uid), { 
-          themeId: t.id,
-          updatedAt: serverTimestamp()
-        }, { merge: true });
-      } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`);
-      }
-    } else {
-      try {
-        const current = JSON.parse(localStorage.getItem('mercado_fresh_guest_settings') || '{}');
-        localStorage.setItem('mercado_fresh_guest_settings', JSON.stringify({ ...current, themeId: t.id }));
-      } catch {}
-    }
+    try {
+      const current = JSON.parse(localStorage.getItem('mercado_fresh_guest_settings') || '{}');
+      localStorage.setItem('mercado_fresh_guest_settings', JSON.stringify({ ...current, themeId: t.id }));
+    } catch {}
   };
 
-  const handleSuggestionsChange = async (s: string) => {
+  const handleSuggestionsChange = (s: string) => {
     setSuggestions(s);
-    if (user) {
+    try {
+      const current = JSON.parse(localStorage.getItem('mercado_fresh_guest_settings') || '{}');
+      localStorage.setItem('mercado_fresh_guest_settings', JSON.stringify({ ...current, suggestions: s }));
+    } catch {}
+  };
+
+  const handleResetData = () => {
+    if (typeof window !== 'undefined' && window.confirm('Deseja restaurar as listas de compras padrão?')) {
+      setLists(DEFAULT_GUEST_LISTS);
       try {
-        await setDoc(doc(db, 'users', user.uid), { 
-          suggestions: s,
-          updatedAt: serverTimestamp()
-        }, { merge: true });
-      } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`);
-      }
-    } else {
-      try {
-        const current = JSON.parse(localStorage.getItem('mercado_fresh_guest_settings') || '{}');
-        localStorage.setItem('mercado_fresh_guest_settings', JSON.stringify({ ...current, suggestions: s }));
+        localStorage.setItem('mercado_fresh_guest_lists', JSON.stringify(DEFAULT_GUEST_LISTS));
       } catch {}
+      setSelectedListId(null);
+      setView('lists');
     }
   };
 
@@ -1932,101 +1639,21 @@ export default function MercadoFreshApp() {
     if (!sharedListIncoming) return;
     const imported: GroceryList = {
       ...sharedListIncoming,
-      id: (user ? 'imported-' : 'guest-') + Date.now(),
+      id: 'list-' + Date.now(),
       name: `${sharedListIncoming.name} (Compartilhada)`,
       status: 'Em andamento',
       items: (sharedListIncoming.items || []).map(item => ({ ...item, checked: false }))
     };
 
-    if (user) {
-      try {
-        const docRef = doc(collection(db, 'lists'));
-        const listData = { ...imported };
-        delete (listData as { id?: string }).id;
-        setDoc(docRef, {
-          ...(deepSanitize(listData) as Record<string, unknown>),
-          userId: user.uid,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
-      } catch (err) {
-        console.error('Error importing list to Firestore', err);
-      }
-    } else {
-      setIsGuest(true);
-      try { localStorage.setItem('mercado_fresh_is_guest', 'true'); } catch {}
-      setLists(prev => {
-        const updated = [imported, ...prev];
-        try { localStorage.setItem('mercado_fresh_guest_lists', JSON.stringify(updated)); } catch {}
-        return updated;
-      });
-    }
+    setLists(prev => {
+      const updated = [imported, ...prev];
+      try { localStorage.setItem('mercado_fresh_guest_lists', JSON.stringify(updated)); } catch {}
+      return updated;
+    });
 
     setSharedListIncoming(null);
     setSelectedListId(imported.id);
   };
-
-  if (!hasMounted || loading) {
-    return (
-      <div 
-        className="min-h-screen bg-slate-50 flex items-center justify-center" 
-      >
-        <Loader2 className={`w-12 h-12 animate-spin ${themeColor.text}`} />
-      </div>
-    );
-  }
-
-  if (!user && !isGuest) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
-        <motion.div 
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="bg-white p-8 sm:p-10 rounded-[2.5rem] shadow-2xl shadow-green-100/50 max-w-sm w-full border border-green-50"
-        >
-          <div className="bg-green-600 w-20 h-20 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-lg shadow-green-200">
-            <ShoppingBasket size={44} className="text-white" />
-          </div>
-          <h1 className="text-3xl font-black text-slate-900 mb-2 tracking-tight">Mercado Fresh</h1>
-          <p className="text-slate-500 mb-6 leading-relaxed font-medium text-xs sm:text-sm">
-            Sua lista de compras moderna e inteligente para economizar no supermercado.
-          </p>
-
-          {loginError && (
-            <div className="mb-5 p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-left text-xs text-amber-800 flex items-start gap-2.5">
-              <Lightbulb className="text-amber-600 shrink-0 mt-0.5" size={16} />
-              <div>
-                <p className="font-bold text-[11px] mb-0.5">Aviso sobre o login:</p>
-                <p className="text-amber-700 text-[11px] leading-relaxed">{loginError}</p>
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-3">
-            <button 
-              onClick={handleLogin}
-              className="w-full h-14 bg-slate-900 text-white rounded-2xl font-bold flex items-center justify-center gap-3 active:scale-95 hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 text-sm"
-            >
-              <LogIn size={18} />
-              CONECTAR COM GOOGLE
-            </button>
-
-            <button 
-              onClick={handleContinueAsGuest}
-              className="w-full h-14 bg-green-50 hover:bg-green-100 text-green-700 border-2 border-green-200 rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all text-xs sm:text-sm"
-            >
-              <Leaf size={18} />
-              USAR GRÁTIS SEM LOGIN (CONVIDADO)
-            </button>
-          </div>
-
-          <p className="mt-6 text-[11px] text-slate-400 font-medium leading-relaxed">
-            No modo sem login, seus dados ficam salvos de forma 100% gratuita e privada neste aparelho sem necessidade de cadastro.
-          </p>
-        </motion.div>
-      </div>
-    );
-  }
 
   const handleShare = (list: GroceryList) => {
     try {
@@ -2047,211 +1674,101 @@ export default function MercadoFreshApp() {
   const copyShareLink = () => {
     if (shareLink) {
       navigator.clipboard.writeText(shareLink);
-      alert('Link copiado! Seu parceiro pode visualizar a lista através deste link.');
+      alert('Link copiado! Você pode enviar este link para qualquer pessoa visualizar a lista.');
       setShareLink(null);
     }
   };
 
   const selectedList = lists.find(l => l.id === selectedListId);
 
-  const handleUpdateList = async (list: GroceryList) => {
-    if (!user) {
-      setLists(prev => {
-        const updated = prev.map(l => l.id === list.id ? list : l);
-        try { localStorage.setItem('mercado_fresh_guest_lists', JSON.stringify(updated)); } catch {}
-        return updated;
-      });
-      return;
-    }
-
-    try {
-      const { id, ...data } = list;
-      // Deeply sanitize data to remove undefined fields
-      const sanitizedData = deepSanitize(data) as Record<string, unknown>;
-      await updateDoc(doc(db, 'lists', id), {
-        ...sanitizedData,
-        updatedAt: serverTimestamp()
-      });
-    } catch (error) {
-      console.error('Error updating list', error);
-    }
+  const handleUpdateList = (list: GroceryList) => {
+    setLists(prev => {
+      const updated = prev.map(l => l.id === list.id ? list : l);
+      try { localStorage.setItem('mercado_fresh_guest_lists', JSON.stringify(updated)); } catch {}
+      return updated;
+    });
   };
 
-  const handleFinishList = async (list: GroceryList, total: number) => {
-    if (isSubmitting) return;
-    setIsSubmitting(true);
+  const handleFinishList = (list: GroceryList, total: number) => {
     const now = new Date();
     const completedAt = `${now.getDate()} de ${now.toLocaleDateString('pt-BR', { month: 'short' })}`;
-    
-    if (!user) {
-      const updatedList: GroceryList = {
-        ...list,
-        status: 'Concluído',
-        completedAt,
-        totalAmount: total
-      };
-      setLists(prev => {
-        const updated = prev.map(l => l.id === list.id ? updatedList : l);
-        try { localStorage.setItem('mercado_fresh_guest_lists', JSON.stringify(updated)); } catch {}
-        return updated;
-      });
-      setView('history');
-      setSelectedListId(null);
-      setIsSubmitting(false);
-      return;
-    }
-
-    try {
-      await updateDoc(doc(db, 'lists', list.id), {
-        status: 'Concluído',
-        completedAt,
-        totalAmount: total,
-        updatedAt: serverTimestamp()
-      });
-      setView('history');
-      setSelectedListId(null);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `lists/${list.id}`);
-    } finally {
-      setIsSubmitting(false);
-    }
+    const updatedList: GroceryList = {
+      ...list,
+      status: 'Concluído',
+      completedAt,
+      totalAmount: total
+    };
+    setLists(prev => {
+      const updated = prev.map(l => l.id === list.id ? updatedList : l);
+      try { localStorage.setItem('mercado_fresh_guest_lists', JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+    setView('history');
+    setSelectedListId(null);
   };
 
-  const confirmAddList = async () => {
+  const confirmAddList = () => {
     if (!newListName.trim() || isSubmitting) return;
     setIsSubmitting(true);
     const budget = parseFloat(newListBudget.replace(',', '.')) || 100;
     
-    if (!user) {
-      const newList: GroceryList = {
-        id: 'guest-' + Date.now(),
-        name: newListName,
-        status: 'Em andamento',
-        icon: 'ShoppingBasket',
-        color: 'bg-green-100 text-green-600',
-        items: [],
-        budgetLimit: budget,
-      };
-      setLists(prev => {
-        const updated = [newList, ...prev];
-        try { localStorage.setItem('mercado_fresh_guest_lists', JSON.stringify(updated)); } catch {}
-        return updated;
-      });
-      setNewListName('');
-      setNewListBudget('100');
-      setIsAddListModalOpen(false);
-      setIsSubmitting(false);
-      return;
-    }
-
-    try {
-      const newListData = {
-        name: newListName,
-        status: 'Em andamento',
-        icon: 'ShoppingBasket',
-        color: 'bg-green-100 text-green-600',
-        items: [],
-        budgetLimit: budget,
-        userId: user.uid,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      };
-      
-      const docRef = doc(collection(db, 'lists'));
-      await setDoc(docRef, newListData);
-      
-      setNewListName('');
-      setNewListBudget('100');
-      setIsAddListModalOpen(false);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'lists');
-    } finally {
-      setIsSubmitting(false);
-    }
+    const newList: GroceryList = {
+      id: 'list-' + Date.now(),
+      name: newListName,
+      status: 'Em andamento',
+      icon: 'ShoppingBasket',
+      color: 'bg-green-100 text-green-600',
+      items: [],
+      budgetLimit: budget,
+    };
+    setLists(prev => {
+      const updated = [newList, ...prev];
+      try { localStorage.setItem('mercado_fresh_guest_lists', JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+    setNewListName('');
+    setNewListBudget('100');
+    setIsAddListModalOpen(false);
+    setIsSubmitting(false);
   };
 
-  const confirmDeleteList = async () => {
+  const confirmDeleteList = () => {
     if (!listToDelete || isSubmitting) return;
     setIsSubmitting(true);
 
-    if (!user) {
-      setLists(prev => {
-        const updated = prev.filter(l => l.id !== listToDelete);
-        try { localStorage.setItem('mercado_fresh_guest_lists', JSON.stringify(updated)); } catch {}
-        return updated;
-      });
-      setIsDeleteModalOpen(false);
-      setListToDelete(null);
-      setIsSubmitting(false);
-      return;
-    }
-
-    try {
-      await deleteDoc(doc(db, 'lists', listToDelete));
-      setIsDeleteModalOpen(false);
-      setListToDelete(null);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `lists/${listToDelete}`);
-    } finally {
-      setIsSubmitting(false);
-    }
+    setLists(prev => {
+      const updated = prev.filter(l => l.id !== listToDelete);
+      try { localStorage.setItem('mercado_fresh_guest_lists', JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+    setIsDeleteModalOpen(false);
+    setListToDelete(null);
+    setIsSubmitting(false);
   };
 
-  const handleDuplicateList = async (list: GroceryList, newName: string) => {
+  const handleDuplicateList = (list: GroceryList, newName: string) => {
     if (isSubmitting) return;
     setIsSubmitting(true);
 
-    if (!user) {
-      const rest = { ...list };
-      delete (rest as { id?: string }).id;
-      const newList: GroceryList = {
-        ...rest,
-        id: 'guest-' + Date.now(),
-        name: newName,
-        status: 'Em andamento',
-        completedAt: undefined,
-        totalAmount: undefined,
-        items: list.items.map(i => ({ ...i, checked: false, id: Math.random().toString(36).substr(2, 9) }))
-      };
-      setLists(prev => {
-        const updated = [newList, ...prev];
-        try { localStorage.setItem('mercado_fresh_guest_lists', JSON.stringify(updated)); } catch {}
-        return updated;
-      });
-      setDuplicatingList(null);
-      setView('lists');
-      setIsSubmitting(false);
-      return;
-    }
-
-    try {
-      const rest = { ...list };
-      delete (rest as { id?: string }).id;
-      
-      const newListData = {
-        ...rest,
-        name: newName,
-        status: 'Em andamento' as const,
-        completedAt: null,
-        totalAmount: null,
-        items: list.items.map(i => ({ ...i, checked: false, id: Math.random().toString(36).substr(2, 9) })),
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        userId: user.uid
-      };
-      
-      // Deeply sanitize data to remove undefined fields
-      const sanitizedData = deepSanitize(newListData) as Record<string, unknown>;
-      
-      const docRef = doc(collection(db, 'lists'));
-      await setDoc(docRef, sanitizedData);
-      setDuplicatingList(null);
-      setView('lists');
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'lists');
-    } finally {
-      setIsSubmitting(false);
-    }
+    const rest = { ...list };
+    delete (rest as { id?: string }).id;
+    const newList: GroceryList = {
+      ...rest,
+      id: 'list-' + Date.now(),
+      name: newName,
+      status: 'Em andamento',
+      completedAt: undefined,
+      totalAmount: undefined,
+      items: list.items.map(i => ({ ...i, checked: false, id: Math.random().toString(36).substr(2, 9) }))
+    };
+    setLists(prev => {
+      const updated = [newList, ...prev];
+      try { localStorage.setItem('mercado_fresh_guest_lists', JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+    setDuplicatingList(null);
+    setView('lists');
+    setIsSubmitting(false);
   };
 
   const renderContent = () => {
@@ -2320,14 +1837,20 @@ export default function MercadoFreshApp() {
           onThemeChange={handleThemeChange}
           suggestions={suggestions}
           onSuggestionsChange={handleSuggestionsChange}
-          user={user}
-          onLogout={handleLogout}
-          onLoginGoogle={handleLogin}
+          onResetData={handleResetData}
         />
       );
       default: return null;
     }
   };
+
+  if (!hasMounted) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <Loader2 className={`w-12 h-12 animate-spin ${themeColor.text}`} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -2341,7 +1864,7 @@ export default function MercadoFreshApp() {
             exit={{ height: 0, opacity: 0 }}
             className="bg-amber-500 text-white text-[10px] font-black uppercase tracking-widest text-center py-1.5 fixed top-16 left-0 w-full z-[45] flex items-center justify-center gap-2"
           >
-            <Zap size={12} fill="white" /> Modo Offline Ativo • Alterações serão sincronizadas em breve
+            <Zap size={12} fill="white" /> Modo Offline • Seus dados continuam salvos com segurança no aparelho
           </motion.div>
         )}
       </AnimatePresence>
